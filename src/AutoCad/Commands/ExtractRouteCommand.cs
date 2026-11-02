@@ -14,7 +14,7 @@ namespace ClaudeBridge.AutoCad.Commands
 {
     /// <summary>
     /// CLAUDE_EXTRACT_ROUTE — produce a "thin extract" of the active drawing as JSON
-    /// matching the contract in <c>pipe_engine/io_schema.py</c> (schema_version "1").
+    /// with a stable schema (schema_version "1") for downstream calculation tools.
     ///
     /// Reads optional filter from <c>%TEMP%\claude_bridge\extract_route_input.json</c>:
     /// {

@@ -419,15 +419,15 @@ server.tool(
 server.tool(
   "extract_so_blocks_from_route",
   [
-    "Produce a 'thin extract' of the active drawing as JSON, matching the schema_version='1' contract in pipe_engine/io_schema.py. Iterates model-space ONCE: collects all polylines (LWPolyline / Polyline3d / Polyline2d) with handle/layer/length/start/end/closed/vertex_count, and all block instances whose effective name matches block_pattern (default 'СО_*') with handle/raw+effective name/layer/position/rotation/scale/all attribute tag-value pairs. Dynamic blocks with anonymous *U-names are resolved to their original dynamic block name when include_anonymous_resolved=true (default).",
+    "Produce a 'thin extract' of the active drawing as JSON (schema_version='1'). Iterates model-space ONCE: collects all polylines (LWPolyline / Polyline3d / Polyline2d) with handle/layer/length/start/end/closed/vertex_count, and all block instances whose effective name matches block_pattern (default 'СО_*') with handle/raw+effective name/layer/position/rotation/scale/all attribute tag-value pairs. Dynamic blocks with anonymous *U-names are resolved to their original dynamic block name when include_anonymous_resolved=true (default).",
     "",
-    "Designed to feed pipe_engine.interpret.build_branches → pipe_engine.earthwork.compute_branches → xlsx-writer. Producer-side commitment: emits raw dwg facts only, no engineering interpretation; the consumer (pipe_engine) parses trace-layer names by regex and groups by (branch_role, pressure, stage).",
+    "Intended as input for external calculation tools (e.g. bill of quantities). Emits raw dwg facts only, no engineering interpretation; the consumer is responsible for parsing layer names and grouping.",
     "",
     "Read-only. Large dwg (~10k entities, 1k+ polylines) typically completes in 5-15s. Output also written to %TEMP%/claude_bridge/extract_route.json for inspection.",
   ].join("\n"),
   {
     block_pattern: z.string().optional().describe("Wildcard for block effective name (AutoCAD-style: * matches any sequence, ? matches one char). Default 'СО_*'."),
-    polyline_layer_pattern: z.string().optional().describe("Wildcard for polyline layer name. Default '*' (all polylines). Use e.g. '!!ГСН*' to skip scenery/title-block polylines."),
+    polyline_layer_pattern: z.string().optional().describe("Wildcard for polyline layer name. Default '*' (all polylines). Use e.g. 'ROUTE*' to keep only route layers and skip scenery/title-block polylines."),
     include_anonymous_resolved: z.boolean().optional().describe("Resolve dynamic-block anonymous *U37 names to their original dynamic block name. Default true."),
     drawing_units_assumed: z.string().optional().describe("Recorded in source.drawing_units_assumed. Default 'm'. INSUNITS metadata is often wrong in legacy Russian dwg; this field tells the consumer how to interpret coordinates."),
   },
