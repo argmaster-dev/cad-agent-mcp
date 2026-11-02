@@ -7,7 +7,7 @@ import { fetchBridge, postBridge, BRIDGE_URL } from "./bridge.js";
 
 const server = new McpServer({
   name: "mcp-autocad-bridge",
-  version: "0.1.0",
+  version: "0.1.1",
 });
 
 server.tool(

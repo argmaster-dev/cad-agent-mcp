@@ -1,6 +1,6 @@
 {
   "name": "mcp-autocad-bridge",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "MCP server bridging Claude to the ClaudeBridge.AutoCad HTTP listener on 127.0.0.1:7890",
   "private": true,
   "type": "module",
