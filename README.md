@@ -69,6 +69,8 @@ mcp-server/autocad/   MCP-сервер для AutoCAD (18 инструменто
 mcp-server/nanocad/   MCP-сервер для nanoCAD (15 инструментов)
 scripts/autocad/      сборка и автозагрузка плагина в AutoCAD
 scripts/nanocad/      сборка, автозагрузка и перезапуск nanoCAD
+scripts/release/      сборка релизного архива и тест установщика
+install.ps1           установщик одной командой
 skills/               навыки агента (SKILL.md)
 docs/                 изображения для README
 ```
@@ -81,9 +83,34 @@ docs/                 изображения для README
 - `inspect-multilayout-dwg` — снимки чертежей с несколькими листами в пространстве модели;
 - `bridge-write-ops-autocad` — проверенные паттерны записи через ActiveX/LISP (новый чертёж, вставка блоков, динамические блоки, атрибуты, кириллица).
 
-## Сборка и установка (Windows)
+## Установка одной командой (AutoCAD 2020)
 
-Нужны .NET SDK 6 (см. `global.json`), Node.js 18+ и установленная САПР. Пути к сборкам API задаются в `.csproj` (`AutoCadRoot` / `NanoCadRoot`) и переопределяются свойством MSBuild.
+В PowerShell, без прав администратора:
+
+```powershell
+irm https://github.com/argmaster-dev/cad-agent-mcp/releases/latest/download/install.ps1 | iex
+```
+
+Нужны AutoCAD 2020 (запущенный хотя бы раз, чтобы появился профиль) и [Node.js](https://nodejs.org) 18+. Установщик:
+
+1. скачивает последний [релиз](https://github.com/argmaster-dev/cad-agent-mcp/releases) в `%LOCALAPPDATA%\cad-agent-mcp`;
+2. прописывает автозагрузку плагина в AutoCAD (язык AutoCAD определяется сам);
+3. подключает MCP-сервер `autocad-bridge` к Claude Code и Codex, если они установлены;
+4. копирует навыки в `~\.claude\skills` и `~\.agents\skills`.
+
+После установки перезапустите AutoCAD и агента. Проверка в AutoCAD: команда `CLAUDE_HTTP_STATUS`.
+
+Удаление:
+
+```powershell
+& ([scriptblock]::Create((irm https://github.com/argmaster-dev/cad-agent-mcp/releases/latest/download/install.ps1))) -Uninstall
+```
+
+Плагин для nanoCAD пока ставится только из исходников (см. ниже).
+
+## Сборка из исходников (Windows)
+
+Нужны .NET SDK 6 (см. `global.json`), Node.js 18+ и установленная САПР. Для AutoCAD сборки API берутся из официального NuGet-пакета Autodesk `AutoCAD.NET` 23.1.0, сам AutoCAD для сборки не нужен; собрать против локальной установки можно свойством `-p:AutoCadRoot=...`. Для nanoCAD путь к сборкам API задаётся свойством `NanoCadRoot` в `.csproj`.
 
 Плагин:
 
@@ -107,13 +134,17 @@ npm install
 npm run build
 ```
 
-## Подключение к агенту
+Релизный архив собирается скриптом `scripts/release/package.sh <версия>` (работает и на Linux); при пуше тега `v*` его собирает и публикует GitHub Actions, предварительно проверив установщик на чистой Windows.
 
-Claude Code:
+## Подключение к агенту вручную
+
+Если ставили из исходников. Claude Code:
 
 ```powershell
 claude mcp add autocad-bridge -- node "<путь-к-репозиторию>\mcp-server\autocad\dist\index.js"
 ```
+
+Для nanoCAD то же самое с сервером `nano-bridge` и путём `mcp-server\nanocad\dist\index.js`.
 
 Codex (`~/.codex/config.toml`):
 
@@ -133,7 +164,11 @@ C# / .NET Framework 4.8 и .NET 6, AutoCAD .NET API, nanoCAD .NET API (Teigha), 
 
 ## Автор
 
-Telegram-канал [@sitimlab](https://t.me/sitimlab) · сайт [sitimlab.ru](https://sitimlab.ru/?utm_source=github&utm_medium=profile)
+Сделано в СитимЛаб — внедряем ИИ-агентов в инженерные и проектные процессы.
+
+Сайт [sitimlab.ru](https://sitimlab.ru/?utm_source=github&utm_medium=profile) · Telegram-канал [@sitimlab](https://t.me/sitimlab) · GitHub [argmaster-dev](https://github.com/argmaster-dev)
+
+Вопросы и предложения — через [Issues](https://github.com/argmaster-dev/cad-agent-mcp/issues).
 
 ## Лицензия
 

@@ -96,7 +96,7 @@ Cross-check each `block_name` against `summary.blocks[]` — if missing from the
 
 ### Step 7: emit the report
 
-Markdown table first (for the engineer), JSON block second (for tooling / Cowork pipelines that consume the structure).
+Markdown table first (for the engineer), JSON block second (for tooling / downstream pipelines that consume the structure).
 
 ```
 ## Спецификация блоков: маршрут <ROUTE_HANDLE>

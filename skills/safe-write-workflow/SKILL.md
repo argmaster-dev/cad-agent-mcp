@@ -1,6 +1,6 @@
 ---
 name: safe-write-workflow
-description: Two-phase safety contract for the hands tools (`execute_command`, `run_lisp`) in the autocad-bridge plugin. Triggers any time the user asks to modify the drawing — "удали слой X", "переименуй блок", "сдвинь маршрут", "delete the dimension layer", "rename block", "move polyline", "run this LISP", "execute command ERASE", "fix this", "fix the drawing", "change this" — and any time a tool call to `execute_command` or `run_lisp` is about to be made. Encodes: dry-run plan → user confirmation → auto-`.dwg` backup → execution → verification. Refuses to run on an unsaved drawing.
+description: Two-phase safety contract for the hands tools (`execute_command`, `run_lisp`) in the autocad-bridge MCP server. Triggers any time the user asks to modify the drawing — "удали слой X", "переименуй блок", "сдвинь маршрут", "delete the dimension layer", "rename block", "move polyline", "run this LISP", "execute command ERASE", "fix this", "fix the drawing", "change this" — and any time a tool call to `execute_command` or `run_lisp` is about to be made. Encodes: dry-run plan → user confirmation → auto-`.dwg` backup → execution → verification. Refuses to run on an unsaved drawing.
 ---
 
 # safe-write-workflow
@@ -102,7 +102,7 @@ Refuse to run, even if the user insists:
 - The user has not given explicit Phase 1 consent.
 - The plan would `ERASE *` or otherwise wipe the model space without a per-entity enumeration. If they truly want to clear modelspace, they can do it manually in AutoCAD; the bridge does not need to be the conduit for that kind of bulk destruction.
 - The payload references an external file path that contains user-visible secrets (passwords, tokens, etc.) — these will land in the `.dwg`'s undo / journal data.
-- The user is in a Cowork session as a non-host participant and is asking *another* participant's AutoCAD to be modified. The single-host topology guarantees that does not happen, but if the request is phrased that way, surface the misunderstanding instead of running silently against the host.
+- The user is asking to modify AutoCAD running on another computer. The bridge listens on 127.0.0.1 only, so that cannot happen; if the request is phrased that way, surface the misunderstanding instead of running silently against the local drawing.
 
 ## Composition with other skills
 

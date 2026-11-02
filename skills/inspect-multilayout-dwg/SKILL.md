@@ -1,6 +1,6 @@
 ---
 name: inspect-multilayout-dwg
-description: Correct workflow for inspecting AutoCAD/NanoCAD dwg files via the nano-bridge — especially typical/template dwg where multiple "листы" are laid out in Model space side-by-side, AND when you switch documents while a project drawing is already open. Use this for ANY dwg snapshot work — even single-layout — because two failure modes (unreadable multi-layout extents + bridge snapshotting the wrong document) both manifest only after you trust the snapshot. The fix has three parts: open via ActiveX AND activate, grid-overlay to read layout bboxes, then per-layout zoom_window.
+description: Correct workflow for inspecting AutoCAD/NanoCAD dwg files via the CAD bridge — especially typical/template dwg where multiple "листы" are laid out in Model space side-by-side, AND when you switch documents while a project drawing is already open. Use this for ANY dwg snapshot work — even single-layout — because two failure modes (unreadable multi-layout extents + bridge snapshotting the wrong document) both manifest only after you trust the snapshot. The fix has three parts: open via ActiveX AND activate, grid-overlay to read layout bboxes, then per-layout zoom_window.
 ---
 
 # inspect-multilayout-dwg — обязательный порядок при снапшоте dwg через bridge
@@ -58,19 +58,19 @@ cp "<cyrillic-source.dwg>" "<TEMP>/<workspace-name>/<ascii_name>.dwg"
 Перед тем как делать «настоящий» workflow, сделай **тестовый snapshot** и проверь что bridge видит ожидаемый документ:
 
 ```
-mcp__nano-bridge__get_document_summary
+get_document_summary
 ```
 
 Сверь поле `document.name` — это должен быть путь к ASCII-temp dwg который ты только что открыл. Если показано что-то другое (project drawing, какой-нибудь .sv$ autosave) — повтори Шаг 1 целиком (`vla-Activate` мог не сработать асинхронно).
 
-Дополнительно: bridge timeout на первом `get_document_summary` после `vla-Open` — частое явление. Если 35s timeout — `mcp__nano-bridge__healthz` + retry summary. Если упорно timeout: `bash rm "<TEMP>/claude_bridge/snapshot.json"` + retry.
+Дополнительно: bridge timeout на первом `get_document_summary` после `vla-Open` — частое явление. Если 35s timeout — `healthz` + retry summary. Если упорно timeout: `bash rm "<TEMP>/claude_bridge/snapshot.json"` + retry.
 
 ### Шаг 3. Zoom extents + сетка + первый snapshot
 
 ```
-mcp__nano-bridge__camera_zoom_extents
-mcp__nano-bridge__overlay_grid       # без аргументов = auto step
-mcp__nano-bridge__get_view
+camera_zoom_extents
+overlay_grid       # без аргументов = auto step
+get_view
 ```
 
 **Сверь снимок с ожиданием:** видишь содержимое того dwg который открыл? Сетка покрывает разумную область (не 70 000 × 90 000 единиц вместо ожидаемых 200 × 200 — это симптом что попал на проект, а не палитру)?
@@ -92,8 +92,8 @@ PNG с сеткой даёт тебе **координатную сетку по
 ### Шаг 5. Per-layout zoom + снимок для КАЖДОГО листа
 
 ```
-mcp__nano-bridge__camera_zoom_window  bbox=(xmin, ymin, xmax, ymax)
-mcp__nano-bridge__get_view
+camera_zoom_window  bbox=(xmin, ymin, xmax, ymax)
+get_view
 ```
 
 Сохраняй PNG копированием **сразу после каждого get_view** — следующий вызов overwrite'нет:
@@ -109,8 +109,8 @@ Overlay сетка автоматически смоется в `get_view`. Не
 После всех per-layout снимков (или вместо них для single-layout dwg):
 
 ```
-mcp__nano-bridge__camera_zoom_extents
-mcp__nano-bridge__get_view
+camera_zoom_extents
+get_view
 ```
 
 Этот PNG нужен subagent'у для общей навигации — «где какой лист в исходной модели». Сохрани как `<id>/extents_grid.png` или `<id>/extents_context.png`.
@@ -139,7 +139,7 @@ mcp__nano-bridge__get_view
 
 ## Bridge tools reference
 
-Из `mcp__nano-bridge`:
+Инструменты MCP-сервера:
 - `healthz` — sanity check, нет ли upstream проблем
 - `get_document_summary` — extents/layers/blocks из API (читает activeDocument)
 - `camera_zoom_extents` — fit модели в окно

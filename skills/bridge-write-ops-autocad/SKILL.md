@@ -1,6 +1,6 @@
 ---
 name: bridge-write-ops-autocad
-description: Working command patterns for WRITE operations in AutoCAD via nano-bridge — create new dwg, insert blocks (regular + dynamic), set dynamic block Lookup parameters, fill attribute references, insert external dwg as block. Use this skill whenever you need to MODIFY an AutoCAD drawing through bridge (not just read/snapshot). Covers 6 bridge gotchas. Especially critical for any task involving cyrillic strings (block names, attribute values, file names) — bridge double-encoding will silently mojibake unless you use the file-based LSP workaround.
+description: Working command patterns for WRITE operations in AutoCAD via the CAD bridge — create new dwg, insert blocks (regular + dynamic), set dynamic block Lookup parameters, fill attribute references, insert external dwg as block. Use this skill whenever you need to MODIFY an AutoCAD drawing through bridge (not just read/snapshot). Covers 6 bridge gotchas. Especially critical for any task involving cyrillic strings (block names, attribute values, file names) — bridge double-encoding will silently mojibake unless you use the file-based LSP workaround.
 ---
 
 # bridge-write-ops-autocad — рабочие команды для модификации AutoCAD через bridge
@@ -137,7 +137,7 @@ Path("C:/.../fill.lsp").write_bytes(LSP.encode('cp1251'))
 ```
 Bridge:
 ```
-mcp__nano-bridge__run_lisp:
+run_lisp:
   (load "C:/.../fill.lsp")
 ```
 
@@ -219,11 +219,11 @@ mkdir -p "<TEMP>/<workspace_name>/"
 
 ## Bridge tools reference (для write-ops)
 
-- `mcp__nano-bridge__run_lisp` (confirm=true) — ВСЁ через него, либо inline LISP, либо `(load "file.lsp")`
-- `mcp__nano-bridge__get_document_summary` — verify active doc после open
-- `mcp__nano-bridge__execute_command` (confirm=true) — для простых command-line операций (`_ZOOM E`, `_SAVE`), хотя проще через `run_lisp` + `(command ...)`
-- `mcp__nano-bridge__get_view` — visual verify результата
-- `mcp__nano-bridge__camera_zoom_extents/window` — для view setup перед snapshot
+- `run_lisp` (confirm=true) — ВСЁ через него, либо inline LISP, либо `(load "file.lsp")`
+- `get_document_summary` — verify active doc после open
+- `execute_command` (confirm=true) — для простых command-line операций (`_ZOOM E`, `_SAVE`), хотя проще через `run_lisp` + `(command ...)`
+- `get_view` — visual verify результата
+- `camera_zoom_extents/window` — для view setup перед snapshot
 
 ## Когда этот skill НЕ применять
 

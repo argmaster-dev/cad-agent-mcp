@@ -1,11 +1,11 @@
 ---
 name: getting-started
-description: Onboarding skill for the autocad-bridge Cowork plugin — first-run handshake with the AutoCAD HTTP bridge, recipe for the first useful snapshot, and a triage flow when something goes wrong. Triggers on first-time users ("how do I use this plugin", "how to start", "with what do I begin", "как начать", "как пользоваться"), on bridge-unreachable errors ("bridge unreachable", "ECONNREFUSED", "127.0.0.1:7890", "tool failed"), and on requests that mention installing or configuring the plugin. Read-only — never modifies the drawing.
+description: Onboarding skill for the autocad-bridge MCP server — first-run handshake with the AutoCAD HTTP bridge, recipe for the first useful snapshot, and a triage flow when something goes wrong. Triggers on first-time users ("how do I use this plugin", "how to start", "with what do I begin", "как начать", "как пользоваться"), on bridge-unreachable errors ("bridge unreachable", "ECONNREFUSED", "127.0.0.1:7890", "tool failed"), and on requests that mention installing or configuring the plugin. Read-only — never modifies the drawing.
 ---
 
 # getting-started
 
-You are walking a new user through their first successful interaction with the `autocad-bridge` Cowork plugin. The plugin sits between Claude (in Cowork) and a running AutoCAD 2020 session on the user's own machine; if the chain is intact the user sees `healthz: ok` and a working snapshot, if not the user sees `bridge unreachable` or a 5xx and gets confused.
+You are walking a new user through their first successful interaction with the `autocad-bridge` MCP server. The plugin sits between the AI agent (Claude Code or Codex) and a running AutoCAD 2020 session on the user's own machine; if the chain is intact the user sees `healthz: ok` and a working snapshot, if not the user sees `bridge unreachable` or a 5xx and gets confused.
 
 Your job: confirm the chain is up, ship the user a working `get_view` snapshot of their active drawing, and — only if a step fails — diagnose where the chain broke.
 
@@ -74,5 +74,5 @@ The listener is up but the request faulted server-side. Ask the user to:
 
 ## Limits
 
-- This skill assumes single-host topology. If the user is a non-host participant in a Cowork session, every tool call will fail with `bridge unreachable` and no host-side triage will fix it because there is no AutoCAD on their machine; tell them they need to be the host or have the host drive the conversation.
+- This skill assumes single-host topology: the agent and AutoCAD run on the same machine. If they do not, every tool call will fail with `bridge unreachable` and no host-side triage will fix it — tell the user to run the agent on the machine with AutoCAD.
 - The skill does not call any write tools (`execute_command`, `run_lisp`). If the user, after onboarding, asks to *change* the drawing, switch to `safe-write-workflow`.
