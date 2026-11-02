@@ -26,9 +26,9 @@
 
 [CmdletBinding()]
 param(
-    # Override the AutoCAD locale branch if the auto-detected one is wrong.
-    # Default works for AutoCAD 2020 ru-RU (ACAD-3001:419).
-    [string]$LocaleKey = "ACAD-3001:419",
+    # AutoCAD product/locale branch, e.g. ACAD-3001:419 (ru-RU) or ACAD-3001:409
+    # (en-US). Empty = auto-detect from the CurVer value written by AutoCAD.
+    [string]$LocaleKey = "",
     # R-version under HKCU\Software\Autodesk\AutoCAD\
     [string]$RVersion = "R23.1",
     # Absolute path to the plugin DLL. Defaults to the build.ps1-maintained
@@ -42,13 +42,58 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
+# ---- locale detection ----------------------------------------------------
+
+$ProductRoot = "HKCU:\Software\Autodesk\AutoCAD\$RVersion"
+if (-not $LocaleKey) {
+    if (-not (Test-Path $ProductRoot)) {
+        throw "AutoCAD $RVersion not found in the current user profile ($ProductRoot). Install AutoCAD 2020 and start it at least once, then re-run."
+    }
+    $LocaleKey = (Get-ItemProperty $ProductRoot -Name CurVer -ErrorAction SilentlyContinue).CurVer
+    if (-not $LocaleKey -or -not (Test-Path (Join-Path $ProductRoot $LocaleKey))) {
+        $candidates = @(Get-ChildItem $ProductRoot | Where-Object { $_.PSChildName -like 'ACAD-*:*' } | Sort-Object PSChildName)
+        if ($candidates.Count -eq 0) {
+            throw "No ACAD-*:* product branch under $ProductRoot. Start AutoCAD 2020 once, then re-run."
+        }
+        $LocaleKey = $candidates[0].PSChildName
+    }
+}
+
+# Language folder name used under %APPDATA%\Autodesk\AutoCAD 2020\<R>\<lang>\Support,
+# derived from the LCID suffix of the locale key (ACAD-3001:419 -> 419 -> rus).
+$LangByLcid = @{
+    '409' = 'enu'; '419' = 'rus'; '407' = 'deu'; '40C' = 'fra'; '410' = 'ita'
+    '40A' = 'esp'; '416' = 'ptb'; '405' = 'csy'; '415' = 'plk'; '40E' = 'hun'
+    '411' = 'jpn'; '412' = 'kor'; '804' = 'chs'; '404' = 'cht'
+}
+$lcid = ($LocaleKey -split ':')[-1].ToUpperInvariant()
+$LangCode = $LangByLcid[$lcid]
+$SupportDir = $null
+if ($LangCode) {
+    $SupportDir = Join-Path $env:APPDATA "Autodesk\AutoCAD 2020\$RVersion\$LangCode\Support"
+}
+if (-not $SupportDir -or -not (Test-Path $SupportDir)) {
+    # Unknown LCID or a vertical product (Map 3D, Mechanical...) with its own folder name.
+    $found = @(Get-ChildItem (Join-Path $env:APPDATA 'Autodesk') -Directory -ErrorAction SilentlyContinue |
+        ForEach-Object { Get-ChildItem (Join-Path $_.FullName $RVersion) -Directory -ErrorAction SilentlyContinue } |
+        ForEach-Object { Join-Path $_.FullName 'Support' } |
+        Where-Object { Test-Path $_ })
+    $SupportDir = if ($found.Count -gt 0) { $found[0] } else { $null }
+}
+
+# acaddoc.lsp is read by AutoCAD 2020 in the system ANSI code page, so write it
+# that way (keeps non-ASCII user-profile paths intact). No BOM.
+$AnsiEncoding = [System.Text.Encoding]::GetEncoding([System.Globalization.CultureInfo]::CurrentCulture.TextInfo.ANSICodePage)
+function Read-Lsp([string]$path) { [System.IO.File]::ReadAllText($path, $AnsiEncoding) }
+function Write-Lsp([string]$path, [string]$text) { [System.IO.File]::WriteAllText($path, $text, $AnsiEncoding) }
+
 # Full registry path for this app under the user's AutoCAD profile.
 $AppsRoot = "HKCU:\Software\Autodesk\AutoCAD\$RVersion\$LocaleKey\Applications"
 $AppKey   = Join-Path $AppsRoot $AppName
 $CmdsKey  = Join-Path $AppKey "Commands"
 
 # The complete CLAUDE_* command surface registered by our [CommandMethod] attributes
-# in src/ClaudeBridge.AutoCad/Properties/AssemblyInfo.cs + HttpControlCommands.
+# in src/AutoCad/Commands/*.cs (see CommandClass list in Properties/AssemblyInfo.cs) + HttpControlCommands.
 # AutoCAD uses this list for demand-load: when any of these is typed at the
 # command line, the LOADER DLL is loaded automatically.
 $Commands = @(
@@ -60,7 +105,10 @@ $Commands = @(
     "CLAUDE_EXEC",
     "CLAUDE_CAMERA",
     "CLAUDE_OVERLAY",
-    "CLAUDE_SEND_PROBE",
+    "CLAUDE_PROBE_SEND",
+    "CLAUDE_BATCH_CAPTURE",
+    "CLAUDE_BATCH_CAPTURE_LAYOUTS",
+    "CLAUDE_EXTRACT_ROUTE",
     "CLAUDE_HTTP_START",
     "CLAUDE_HTTP_STOP",
     "CLAUDE_HTTP_STATUS"
@@ -82,11 +130,11 @@ if ($Remove) {
         Write-Host "Nothing to remove at $AppKey (already absent)."
     }
     # Strip our acaddoc.lsp block too.
-    $acaddocPath = Join-Path $env:APPDATA "Autodesk\AutoCAD 2020\$RVersion\rus\Support\acaddoc.lsp"
+    $acaddocPath = if ($SupportDir) { Join-Path $SupportDir "acaddoc.lsp" } else { $null }
     $markerOpen  = ";; cad-agent-mcp (AutoCAD) auto-NETLOAD: BEGIN (managed by install-autoload.ps1)"
     $markerClose = ";; cad-agent-mcp (AutoCAD) auto-NETLOAD: END"
-    if (Test-Path $acaddocPath) {
-        $existing = Get-Content $acaddocPath -Raw -Encoding UTF8
+    if ($acaddocPath -and (Test-Path $acaddocPath)) {
+        $existing = Read-Lsp $acaddocPath
         if ($existing.Contains($markerOpen) -and $existing.Contains($markerClose)) {
             $startIdx = $existing.IndexOf($markerOpen)
             $endIdx   = $existing.IndexOf($markerClose) + $markerClose.Length
@@ -95,7 +143,7 @@ if ($Remove) {
                 Remove-Item $acaddocPath
                 Write-Host "Removed empty acaddoc.lsp at $acaddocPath"
             } else {
-                Set-Content -Path $acaddocPath -Value $new -Encoding UTF8 -NoNewline
+                Write-Lsp $acaddocPath $new
                 Write-Host "Stripped block from acaddoc.lsp at $acaddocPath"
             }
         }
@@ -187,9 +235,9 @@ if (Test-Path $ProfilesRoot) {
 # invoke `_.NETLOAD` directly. With TRUSTEDPATHS containing our DLL dir
 # (set above), the security prompt is bypassed.
 #
-# Path: %APPDATA%\Autodesk\AutoCAD 2020\R23.1\rus\Support\acaddoc.lsp
+# Path: %APPDATA%\Autodesk\AutoCAD 2020\R23.1\<lang>\Support\acaddoc.lsp (lang from LocaleKey)
 # We use sentinel comments around our block for idempotency / clean uninstall.
-$acaddocPath = Join-Path $env:APPDATA "Autodesk\AutoCAD 2020\$RVersion\rus\Support\acaddoc.lsp"
+$acaddocPath = if ($SupportDir) { Join-Path $SupportDir "acaddoc.lsp" } else { $null }
 $markerOpen  = ";; cad-agent-mcp (AutoCAD) auto-NETLOAD: BEGIN (managed by install-autoload.ps1)"
 $markerClose = ";; cad-agent-mcp (AutoCAD) auto-NETLOAD: END"
 
@@ -207,31 +255,31 @@ $markerOpen
 $markerClose
 "@
 
-$lspDirExists = Test-Path (Split-Path -Parent $acaddocPath)
-if (-not $lspDirExists) {
-    Write-Warning "AutoCAD support folder not found: $(Split-Path -Parent $acaddocPath). Skipping acaddoc.lsp hook — start AutoCAD 2020 at least once to create the profile, then re-run."
+if (-not $acaddocPath) {
+    Write-Warning "AutoCAD support folder not found under $env:APPDATA\Autodesk. Skipping acaddoc.lsp hook; start AutoCAD 2020 at least once to create the profile, then re-run."
 } else {
-    if (Test-Path $acaddocPath) {
-        $existing = Get-Content $acaddocPath -Raw -Encoding UTF8
+    if ($acaddocPath -and (Test-Path $acaddocPath)) {
+        $existing = Read-Lsp $acaddocPath
         if ($existing.Contains($markerOpen) -and $existing.Contains($markerClose)) {
             # Replace our existing block in-place via substring math (regex
             # replacement on multiline blocks with backslashes is fragile).
             $startIdx = $existing.IndexOf($markerOpen)
             $endIdx   = $existing.IndexOf($markerClose) + $markerClose.Length
             $new = $existing.Substring(0, $startIdx) + $block + $existing.Substring($endIdx)
-            Set-Content -Path $acaddocPath -Value $new -Encoding UTF8 -NoNewline
+            Write-Lsp $acaddocPath $new
             Write-Host "acaddoc.lsp: updated existing block at $acaddocPath"
         } else {
-            Add-Content -Path $acaddocPath -Value "`n$block" -Encoding UTF8
+            Write-Lsp $acaddocPath ($existing.TrimEnd() + "`r`n" + $block)
             Write-Host "acaddoc.lsp: appended block to existing file at $acaddocPath"
         }
     } else {
-        Set-Content -Path $acaddocPath -Value $block -Encoding UTF8 -NoNewline
+        Write-Lsp $acaddocPath $block
         Write-Host "acaddoc.lsp: created fresh at $acaddocPath"
     }
 }
 
 Write-Host ""
+Write-Host "AutoCAD profile branch: $LocaleKey"
 Write-Host "Registered ClaudeBridge.AutoCad for autoload (two mechanisms, belt-and-suspenders):"
 Write-Host "  1. Applications registry: $AppKey"
 Write-Host "       LOADER:    $DllPath"

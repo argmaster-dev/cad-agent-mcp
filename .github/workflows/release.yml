@@ -1,0 +1,95 @@
+name: release
+
+# Pushing a tag like v0.1.0 builds the AutoCAD package, tests the installer on a
+# clean Windows runner and publishes a GitHub Release with:
+#   cad-agent-mcp-autocad.zip   plugin + single-file MCP server + skills
+#   install.ps1                 one-command installer
+# Pull requests and pushes to main run the same build and installer test.
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Type-check MCP servers
+        run: |
+          for d in autocad nanocad; do
+            (cd mcp-server/$d && npm ci --no-audit --no-fund && npx tsc --noEmit -p .)
+          done
+      - name: Package
+        run: scripts/release/package.sh "${{ github.ref_type == 'tag' && github.ref_name || format('dev-{0}', github.sha) }}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release
+          path: |
+            dist-release/cad-agent-mcp-autocad.zip
+            dist-release/install.ps1
+
+  test-install:
+    needs: build
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - uses: actions/download-artifact@v4
+        with:
+          name: release
+          path: dist-release
+      - name: Installer test (Windows PowerShell 5.1)
+        shell: powershell
+        run: scripts\release\test-install.ps1 -Zip dist-release\cad-agent-mcp-autocad.zip -Installer dist-release\install.ps1
+
+  release:
+    if: github.ref_type == 'tag'
+    needs: test-install
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: release
+          path: dist-release
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          cat > notes.md <<'EOF'
+          ## Установка одной командой (AutoCAD 2020)
+
+          В PowerShell, без прав администратора:
+
+          ```powershell
+          irm https://github.com/argmaster-dev/cad-agent-mcp/releases/latest/download/install.ps1 | iex
+          ```
+
+          Нужны AutoCAD 2020 (запущенный хотя бы раз) и Node.js 18+. Установщик сам пропишет автозагрузку плагина и подключит MCP-сервер к Claude Code и Codex.
+
+          Плагин для nanoCAD в этом релизе не поставляется — сборка из исходников, см. README.
+          EOF
+          gh release create "$TAG" \
+            --repo "${{ github.repository }}" \
+            --title "$TAG" \
+            --notes-file notes.md \
+            --latest \
+            dist-release/cad-agent-mcp-autocad.zip \
+            dist-release/install.ps1

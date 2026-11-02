@@ -13,7 +13,13 @@
     <LangVersion>latest</LangVersion>
     <PlatformTarget>x64</PlatformTarget>
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
-    <AutoCadRoot Condition="'$(AutoCadRoot)' == ''">C:\Program Files\Autodesk\AutoCAD 2020</AutoCadRoot>
+    <!--
+      Reference assemblies for the AutoCAD API come from Autodesk's official
+      NuGet package AutoCAD.NET 23.1.0 (= AutoCAD 2020, R23.1) by default, so the
+      plugin builds anywhere, including CI and non-Windows machines.
+      To compile against a locally installed AutoCAD instead, pass
+      -p:AutoCadRoot="C:\Program Files\Autodesk\AutoCAD 2020".
+    -->
   </PropertyGroup>
 
   <ItemGroup>
@@ -35,13 +41,18 @@
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
   </ItemGroup>
 
-  <ItemGroup>
-    <!--
-      AutoCAD managed Object ARX trio. CopyLocal=false (Private=false) is the
-      standard ARX rule: don't shadow Autodesk DLLs into the output folder,
-      since at runtime AutoCAD always loads them from its own bin directory
-      and a stale copy in our output would confuse version resolution.
-    -->
+  <!-- Default: reference assemblies from NuGet. ExcludeAssets=runtime keeps
+       Autodesk DLLs out of the output folder (AutoCAD loads its own copies). -->
+  <ItemGroup Condition="'$(AutoCadRoot)' == ''">
+    <PackageReference Include="AutoCAD.NET" Version="23.1.0" ExcludeAssets="runtime" />
+  </ItemGroup>
+
+  <!--
+    Alternative: the managed ObjectARX trio from a local AutoCAD install.
+    Private=false is the standard ARX rule: don't shadow Autodesk DLLs into the
+    output folder, since at runtime AutoCAD always loads them from its own bin.
+  -->
+  <ItemGroup Condition="'$(AutoCadRoot)' != ''">
     <Reference Include="accoremgd">
       <HintPath>$(AutoCadRoot)\accoremgd.dll</HintPath>
       <Private>false</Private>
