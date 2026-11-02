@@ -74,21 +74,62 @@ jobs:
           TAG: ${{ github.ref_name }}
         run: |
           cat > notes.md <<'EOF'
-          ## Установка одной командой (AutoCAD 2020)
+          ИИ-агент (Claude Code, Codex) в AutoCAD через MCP: агент видит открытый чертёж — снимок окна, слои, блоки, поиск объектов — и вносит правки командами САПР и LISP по схеме «план → подтверждение → резервная копия → выполнение».
 
-          В PowerShell, без прав администратора:
+          ## Совместимость
+
+          - **AutoCAD 2020** — плагин собран и проверялся именно на этой версии.
+          - **Другие версии AutoCAD не проверялись**, установщик их не поддерживает.
+          - **nanoCAD 24.1** — в релиз пока не входит, сборка из исходников (см. README).
+          - Windows 10/11.
+
+          ## Что нужно заранее
+
+          1. AutoCAD 2020, запущенный хотя бы один раз (чтобы появился профиль пользователя).
+          2. [Node.js](https://nodejs.org) 18 или новее — на нём работает MCP-сервер. Быстро: `winget install OpenJS.NodeJS.LTS`.
+          3. ИИ-агент: [Claude Code](https://claude.com/claude-code) и/или Codex.
+
+          ## Установка одной командой
+
+          Откройте PowerShell (права администратора не нужны) и выполните:
 
           ```powershell
           irm https://github.com/argmaster-dev/cad-agent-mcp/releases/latest/download/install.ps1 | iex
           ```
 
-          Нужны AutoCAD 2020 (запущенный хотя бы раз) и Node.js 18+. Установщик сам пропишет автозагрузку плагина и подключит MCP-сервер к Claude Code и Codex.
+          Установщик:
+          - скачает архив релиза в `%LOCALAPPDATA%\cad-agent-mcp`;
+          - пропишет автозагрузку плагина в AutoCAD 2020 (язык AutoCAD определяется сам);
+          - подключит MCP-сервер `autocad-bridge` к Claude Code и Codex, если они установлены;
+          - скопирует навыки агента в `~\.claude\skills` и `~\.agents\skills`.
 
-          Плагин для nanoCAD в этом релизе не поставляется — сборка из исходников, см. README.
+          ## После установки
+
+          1. Перезапустите AutoCAD 2020 и откройте **сохранённый** чертёж (несохранённый агент править не будет — некуда сделать резервную копию).
+          2. Проверьте плагин: команда `CLAUDE_HTTP_STATUS` в командной строке AutoCAD должна ответить `listener is RUNNING`.
+          3. Перезапустите агента и попросите: «проверь связь с AutoCAD и сделай снимок чертежа».
+
+          ## Установка вручную
+
+          Скачайте `cad-agent-mcp-autocad.zip`, распакуйте, затем:
+          - в AutoCAD: `NETLOAD` → `plugin\ClaudeBridge.AutoCad.dll` (или `tools\install-autoload.ps1 -DllPath <путь к DLL>` для автозагрузки);
+          - в Claude Code: `claude mcp add -s user autocad-bridge -- node "<папка>\server\index.mjs"`.
+
+          ## Удаление
+
+          ```powershell
+          & ([scriptblock]::Create((irm https://github.com/argmaster-dev/cad-agent-mcp/releases/latest/download/install.ps1))) -Uninstall
+          ```
+
+          ## Если что-то не так
+
+          Пишите в [Issues](https://github.com/argmaster-dev/cad-agent-mcp/issues): версия AutoCAD, язык, вывод установщика.
+
+          [sitimlab.ru](https://sitimlab.ru/?utm_source=github&utm_medium=release) · Telegram [@sitimlab](https://t.me/sitimlab)
           EOF
           gh release create "$TAG" \
             --repo "${{ github.repository }}" \
-            --title "$TAG" \
+            --title "cad-agent-mcp $TAG (AutoCAD 2020)" \
             --notes-file notes.md \
             --latest \
             dist-release/cad-agent-mcp-autocad.zip \
